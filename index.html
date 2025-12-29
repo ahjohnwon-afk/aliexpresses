@@ -22,7 +22,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Finds - Tu Guía de Compras en España</title>
+    <title>ES Finds - Tu Guía de Compras en España</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
@@ -56,9 +56,11 @@
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <i class="fa-solid fa-bag-shopping text-orange-400 text-2xl"></i>
-                <span class="text-xl font-extrabold tracking-tight">GLOBAL<span class="text-orange-500">FINDS</span></span>
+                <span class="text-xl font-extrabold tracking-tight">ES<span class="text-orange-500">FINDS</span></span>
             </div>
-            <div class="text-[11px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full border">ESPAÑA</div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold text-slate-400 border border-slate-200 px-2 py-0.5 rounded">ESPAÑA</span>
+            </div>
         </div>
     </nav>
 
@@ -97,13 +99,13 @@
     <footer>
         <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-slate-700 pb-10">
             <div class="space-y-4">
-                <h4 class="text-white font-bold text-lg">Sobre Global Finds</h4>
-                <p>Ofrecemos una selección curada de productos para ayudar a los usuarios en España a encontrar las mejores ofertas. Nuestra misión es simplificar su experiencia de compra con recomendaciones independientes.</p>
+                <h4 class="text-white font-bold text-lg">Sobre ES Finds</h4>
+                <p>Ofrecemos una selección curada de productos para ayudar a los usuarios en España a encontrar las mejores ofertas. Nuestra misión es simplificar su experiencia de compra con recomendaciones independientes y actualizadas.</p>
             </div>
             <div class="space-y-4">
                 <h4 class="text-white font-bold text-lg">Divulgación de Afiliados</h4>
                 <p>Este sitio web participa en diversos programas de afiliación, lo que nos permite obtener una comisión por las compras realizadas a través de nuestros enlaces.</p>
-                <p><strong>Aviso:</strong> Global Finds percibe ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
+                <p><strong>Aviso:</strong> ES Finds percibo ingresos por las compras adscritas que cumplen los requisitos aplicables.</p>
             </div>
         </div>
         <div class="text-center pt-8 text-slate-500 text-[12px]">
@@ -119,7 +121,6 @@
 
     <script>
         let allProducts = [];
-        let filteredProducts = [];
         let currentIndex = 0;
         const itemsPerPage = 20;
         let swiperInstance = null;
@@ -135,10 +136,9 @@
                 // 按日期排序
                 allProducts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 
-                filteredProducts = allProducts;
-                document.getElementById('stats').innerText = `${filteredProducts.length} PRODUCTOS`;
+                document.getElementById('stats').innerText = `${allProducts.length} PRODUCTOS`;
 
-                renderCarousel(filteredProducts.slice(0, 5));
+                renderCarousel(allProducts.slice(0, 5));
                 loadMore();
 
                 const observer = new IntersectionObserver((entries) => {
@@ -191,7 +191,7 @@
 
         function loadMore() {
             const grid = document.getElementById('product-grid');
-            const batch = filteredProducts.slice(currentIndex, currentIndex + itemsPerPage);
+            const batch = allProducts.slice(currentIndex, currentIndex + itemsPerPage);
             if (batch.length === 0) {
                 document.getElementById('loader').classList.add('hidden');
                 if (currentIndex > 0) document.getElementById('end-msg').classList.remove('hidden');
