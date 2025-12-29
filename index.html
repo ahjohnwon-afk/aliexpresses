@@ -22,7 +22,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Finds - Tu Guía de Compras Personalizada</title>
+    <title>Global Finds - Personal Shopping Guide</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
@@ -51,8 +51,8 @@
 </head>
 <body class="bg-slate-50 font-sans text-slate-900">
 
-    <div class="bg-slate-800 text-slate-300 text-[10px] py-1.5 text-center px-4 tracking-tight">
-        AS AN ASSOCIATE, I EARN FROM QUALIFYING PURCHASES. | COMO AFILIADO, PERCIBO INGRESOS POR COMPRAS ADSCRITAS.
+    <div class="bg-slate-800 text-slate-300 text-[10px] py-1.5 text-center px-4 tracking-tight uppercase">
+        As an associate, I earn from qualifying purchases. | Como afiliado, percibo ingresos por compras adscritas.
     </div>
 
     <nav class="glass-nav sticky top-0 z-[1000] px-4 py-3">
@@ -62,19 +62,25 @@
                 <span class="text-xl font-extrabold tracking-tight">GLOBAL<span class="text-orange-500">FINDS</span></span>
             </div>
             
-            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                <button onclick="switchMarket('es')" id="btn-es" class="market-btn px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase">España</button>
-                <button onclick="switchMarket('us')" id="btn-us" class="market-btn px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase">Global</button>
+            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shadow-inner">
+                <button onclick="switchMarket('es')" id="btn-es" class="market-btn px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all">España</button>
+                <button onclick="switchMarket('us')" id="btn-us" class="market-btn px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all">Global</button>
             </div>
         </div>
     </nav>
 
     <main class="max-w-7xl mx-auto px-4 py-8">
         <div id="search-hint" class="text-[11px] text-slate-500 mb-6 flex items-center gap-3 italic bg-white p-3 rounded-xl shadow-sm border border-slate-200">
-            <i class="fa-solid fa-magnifying-glass text-orange-400"></i> 
+            <i class="fa-solid fa-circle-info text-orange-400"></i>
+            <span id="hint-text">Si el enlace no carga, busque en: <b>esfinds.com</b></span>
         </div>
 
-        <div id="carousel-container" class="hidden"><div class="swiper mySwiper shadow-xl"><div class="swiper-wrapper" id="carousel-wrapper"></div><div class="swiper-pagination"></div></div></div>
+        <div id="carousel-container" class="hidden">
+            <div class="swiper mySwiper shadow-xl">
+                <div class="swiper-wrapper" id="carousel-wrapper"></div>
+                <div class="swiper-pagination"></div>
+            </div>
+        </div>
         
         <div class="flex items-center justify-between mb-8 mt-4"> 
             <h2 class="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
@@ -89,27 +95,32 @@
         <div id="sentinel" class="py-16 flex flex-col items-center justify-center">
             <div id="loader" class="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
             <div id="end-msg" class="hidden text-slate-400 text-sm text-center max-w-md">
-                <p class="font-medium">✨ Todas las recomendaciones cargadas.</p>
-                <p class="mt-2 text-[11px] leading-relaxed">Los precios y la disponibilidad de los productos son precisos en la fecha/hora indicada y están sujetos a cambios.</p>
+                <p id="end-text-main" class="font-medium">✨ Todas las recomendaciones cargadas.</p>
+                <p id="end-text-sub" class="mt-2 text-[11px] leading-relaxed">Los precios y la disponibilidad son precisos en la fecha/hora indicada和están sujetos a cambios.</p>
             </div>
         </div>
     </main>
 
     <footer>
-        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-slate-700 pb-10">
             <div class="space-y-4">
-                <h4 class="text-white font-bold text-lg">Sobre Global Finds</h4>
-                <p>Ofrecemos una selección curada de productos para ayudar a los usuarios a encontrar las mejores opciones en diversos mercados. Nuestra misión es simplificar su experiencia de compra.</p>
+                <h4 class="text-white font-bold text-lg">About Global Finds</h4>
+                <p>We offer a curated selection of products to help users find the best options in various markets. Our mission is to simplify your shopping experience with independent picks.</p>
             </div>
             <div class="space-y-4">
-                <h4 class="text-white font-bold text-lg">Divulgación de Afiliados</h4>
-                <p>Global Finds participa en varios programas de marketing de afiliados, lo que significa que podemos recibir comisiones por productos elegidos editorialmente y comprados a través de nuestros enlaces.</p>
-                <p><strong>Aviso:</strong> Este sitio web participa en programas de afiliación, lo que nos permite obtener una comisión por las compras realizadas a través de nuestros enlaces.</p>
+                <h4 class="text-white font-bold text-lg">Affiliate Disclosure</h4>
+                <p>Global Finds participates in various affiliate marketing programs, meaning we may earn commissions for editorial-chosen products purchased through our links.</p>
+                <p><strong>Aviso:</strong> Este sitio web participa en programas de afiliación, lo que nos permite obtener una comisión por las compras realizadas.</p>
             </div>
-        </div> 
+        </div>
+        <div class="text-center pt-8 text-slate-500 text-[12px]">
+            &copy; 2025 ESFINDS.COM | All Rights Reserved.
+        </div>
     </footer>
 
-    <div id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})"><i class="fa-solid fa-arrow-up"></i></div>
+    <div id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        <i class="fa-solid fa-arrow-up"></i>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
@@ -119,15 +130,30 @@
         let currentIndex = 0;
         const itemsPerPage = 20;
         let swiperInstance = null;
+        let currentLang = 'es';
 
+        // 切换市场与自动语言更新
         function switchMarket(marketCode) {
+            currentLang = marketCode;
             document.querySelectorAll('.market-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`btn-${marketCode}`).classList.add('active');
             
+            const hint = document.getElementById('hint-text');
+            const title = document.getElementById('market-title');
+            const endMain = document.getElementById('end-text-main');
+            const endSub = document.getElementById('end-text-sub');
+            const stats = document.getElementById('stats');
+
             if(marketCode === 'es') {
-                document.getElementById('market-title').innerText = `Selección España`;
+                title.innerText = `Selecciones del día`;
+                hint.innerHTML = `Si el enlace no carga, busque en: <b>esfinds.com</b>`;
+                endMain.innerText = `✨ Todas las recomendaciones cargadas.`;
+                endSub.innerText = `Los precios y la disponibilidad son precisos en la fecha/hora indicada y están sujetos a cambios.`;
             } else {
-                document.getElementById('market-title').innerText = `Selección Global`;
+                title.innerText = `Today's Top Picks`;
+                hint.innerHTML = `If link fails, please search at: <b>esfinds.com</b>`;
+                endMain.innerText = `✨ All recommendations loaded.`;
+                endSub.innerText = `Prices and availability are accurate as of the date/time indicated and are subject to change.`;
             }
 
             filteredProducts = allProducts.filter(item => 
@@ -138,7 +164,7 @@
             document.getElementById('product-grid').innerHTML = '';
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('end-msg').classList.add('hidden');
-            document.getElementById('stats').innerText = `${filteredProducts.length} PRODUCTOS`;
+            stats.innerText = `${filteredProducts.length} ${marketCode === 'es' ? 'PRODUCTOS' : 'PRODUCTS'}`;
 
             renderCarousel(filteredProducts.slice(0, 5));
             loadMore();
@@ -156,6 +182,7 @@
                 allProducts = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 switchMarket(defaultMarket);
 
+                // 曝光与无限滚动观察者
                 const observer = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
                         if (entry.isIntersecting) {
@@ -185,6 +212,10 @@
             const wrapper = document.getElementById('carousel-wrapper');
             if (topDeals.length === 0) { container.classList.add('hidden'); return; }
             container.classList.remove('hidden');
+            
+            const btnText = currentLang === 'es' ? 'Ver producto' : 'View Product';
+            const tagText = currentLang === 'es' ? 'DESTACADO' : 'TOP PICK';
+
             wrapper.innerHTML = topDeals.map(item => `
                 <div class="swiper-slide">
                     <div class="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent z-10"></div>
@@ -192,9 +223,9 @@
                     <div class="relative z-20 flex items-center h-full p-8 gap-8 text-white">
                         <img src="${item.item_main_pic}" class="h-32 w-32 md:h-52 md:w-52 rounded-2xl object-contain bg-white p-4 shadow-2xl">
                         <div class="flex-1">
-                            <span class="bg-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-full mb-3 inline-block">DESTACADO</span>
+                            <span class="bg-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-full mb-3 inline-block">${tagText}</span>
                             <h3 class="text-xl md:text-3xl font-bold mb-4 line-clamp-2 leading-tight">${item.text_content}</h3>
-                            <a href="${item.affiliate_link}" target="_blank" class="inline-block px-10 py-4 brand-gradient text-white font-bold rounded-xl shadow-lg">Ver producto</a>
+                            <a href="${item.affiliate_link}" target="_blank" class="inline-block px-10 py-4 brand-gradient text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-105">${btnText}</a>
                         </div>
                     </div>
                 </div>
@@ -211,9 +242,12 @@
                 if (currentIndex > 0) document.getElementById('end-msg').classList.remove('hidden');
                 return;
             }
+
+            const btnText = currentLang === 'es' ? 'Consultar' : 'Check Price';
+
             batch.forEach(item => {
                 const card = document.createElement('div');
-                card.className = "product-card shadow-sm hover:shadow-md transition-shadow flex flex-col fade-in";
+                card.className = "product-card shadow-sm hover:shadow-md flex flex-col fade-in";
                 card.setAttribute('data-item', JSON.stringify(item));
                 card.innerHTML = `
                     <a href="${item.affiliate_link}" onclick='tracker.sendClick(${JSON.stringify(item).replace(/'/g, "&apos;")}, "grid_img")' target="_blank" class="block relative aspect-square bg-white rounded-t-xl overflow-hidden">
@@ -223,7 +257,7 @@
                         <h3 class="text-[13px] font-bold line-clamp-3 h-14 mb-4 text-slate-800 leading-snug">${item.text_content}</h3>
                         <div class="mt-auto">
                             <a href="${item.affiliate_link}" target="_blank" class="w-full py-3 bg-slate-800 text-orange-400 text-xs font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-700">
-                                Consultar <i class="fa-solid fa-external-link text-[10px]"></i>
+                                ${btnText} <i class="fa-solid fa-external-link text-[10px]"></i>
                             </a>
                         </div>
                     </div>
@@ -237,5 +271,3 @@
     </script>
 </body>
 </html>
-
-
