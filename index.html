@@ -39,6 +39,11 @@
         .product-card { transition: all 0.3s; border: 1px solid #eee; background: white; }
         .fade-in { animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 切换按钮样式 */
+        .market-btn { cursor: pointer; transition: all 0.2s; border: 1px solid #ddd; }
+        .market-btn.active { background: #232f3e; color: #FF9900; border-color: #232f3e; }
+
         #back-to-top { position: fixed; bottom: 30px; right: 20px; width: 45px; height: 45px; background: #232f3e; color: #FF9900; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: 0.3s; z-index: 2000; }
         #back-to-top.show { opacity: 1; visibility: visible; }
     </style>
@@ -49,17 +54,27 @@
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <i class="fa-brands fa-amazon text-[#FF9900] text-3xl"></i>
-                <span class="text-xl font-bold">Global <span class="text-[#FF9900]">Finds</span></span>
+                <span class="text-xl font-bold hidden sm:inline">Global <span class="text-[#FF9900]">Finds</span></span>
             </div>
-            <div class="flex items-center gap-2">
-                <span id="country-tag" class="text-[9px] font-bold bg-gray-200 px-2 py-1 rounded">MATCHING...</span>
-                <span id="stats" class="text-[10px] font-bold text-gray-500 border px-3 py-1 rounded-md">LOADING...</span>
+            
+            <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                <button onclick="switchMarket('es')" id="btn-es" class="market-btn px-3 py-1 rounded-md text-[10px] font-black uppercase">ES</button>
+                <button onclick="switchMarket('us')" id="btn-us" class="market-btn px-3 py-1 rounded-md text-[10px] font-black uppercase">US</button>
             </div>
         </div>
     </nav>
 
     <main class="max-w-7xl mx-auto px-4 py-6">
         <div id="carousel-container" class="hidden"><div class="swiper mySwiper shadow-lg"><div class="swiper-wrapper" id="carousel-wrapper"></div><div class="swiper-pagination"></div></div></div>
+        
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+                <span class="w-2 h-6 bg-[#FF9900] rounded-full"></span>
+                <span id="market-title">Amazon Deals</span>
+            </h2>
+            <span id="stats" class="text-[10px] font-bold text-gray-400">LOADING...</span>
+        </div>
+
         <div id="product-grid"></div>
         <div id="sentinel" class="py-12 flex flex-col items-center justify-center">
             <div id="loader" class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF9900]"></div>
@@ -76,37 +91,51 @@
         let filteredProducts = [];
         let currentIndex = 0;
         const itemsPerPage = 20;
+        let swiperInstance = null;
+
+        // 核心切换逻辑
+        function switchMarket(marketCode) {
+            // 1. 更新按钮样式
+            document.querySelectorAll('.market-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${marketCode}`).classList.add('active');
+            document.getElementById('market-title').innerText = `${marketCode.toUpperCase()} Exclusive Deals`;
+
+            // 2. 过滤数据
+            filteredProducts = allProducts.filter(item => 
+                item.marketplace && item.marketplace.toLowerCase() === marketCode
+            );
+
+            // 3. 重置瀑布流状态
+            currentIndex = 0;
+            document.getElementById('product-grid').innerHTML = '';
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('end-msg').classList.add('hidden');
+            document.getElementById('stats').innerText = `${filteredProducts.length} DEALS`;
+
+            // 4. 重新加载内容
+            renderCarousel(filteredProducts.slice(0, 5));
+            loadMore();
+            
+            // 回到顶部方便用户查看新数据
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
 
         async function init() {
             try {
-                // 1. 获取浏览器语言
-                // navigator.language 通常返回 "es-ES", "en-US", "zh-CN" 等
+                // 默认根据浏览器语言识别
                 const browserLang = (navigator.language || navigator.userLanguage).toLowerCase();
-                const isSpanish = browserLang.startsWith('es'); // 判断是否以 es 开头
-                
-                const targetMarket = isSpanish ? 'es' : 'us';
-                document.getElementById('country-tag').innerText = `MARKET: ${targetMarket.toUpperCase()}`;
+                const defaultMarket = browserLang.startsWith('es') ? 'es' : 'us';
 
-                // 2. 加载 JSON
                 const response = await fetch('amazondeals.json');
                 const data = await response.json();
 
-                // 3. 排序：按时间倒序
+                // 时间倒序排序
                 allProducts = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-                // 4. 根据语言匹配过滤
-                filteredProducts = allProducts.filter(item => 
-                    item.marketplace && item.marketplace.toLowerCase() === targetMarket
-                );
+                // 初始化市场
+                switchMarket(defaultMarket);
 
-                // 兜底：如果对应的国家没数据，就显示全部
-                if(filteredProducts.length === 0) filteredProducts = allProducts;
-
-                document.getElementById('stats').innerText = `${filteredProducts.length} DEALS`;
-
-                // 5. 渲染 Banner 和瀑布流
-                renderCarousel(filteredProducts.slice(0, 5));
-
+                // 瀑布流观察者
                 const observer = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
                         if (entry.isIntersecting) {
@@ -134,9 +163,15 @@
         }
 
         function renderCarousel(topDeals) {
+            const container = document.getElementById('carousel-container');
             const wrapper = document.getElementById('carousel-wrapper');
-            if (topDeals.length === 0) return;
-            document.getElementById('carousel-container').classList.remove('hidden');
+            
+            if (topDeals.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            
+            container.classList.remove('hidden');
             wrapper.innerHTML = topDeals.map(item => `
                 <div class="swiper-slide">
                     <div class="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent z-10"></div>
@@ -144,14 +179,21 @@
                     <div class="relative z-20 flex items-center h-full p-6 gap-6 text-white">
                         <img src="${item.item_main_pic}" class="h-32 w-32 md:h-52 md:w-52 rounded-xl object-contain bg-white p-2">
                         <div class="flex-1">
-                            <span class="bg-[#FF9900] text-black text-[10px] font-black px-2 py-1 rounded mb-2 inline-block uppercase">${item.marketplace} RECOMMEND</span>
+                            <span class="bg-[#FF9900] text-black text-[10px] font-black px-2 py-1 rounded mb-2 inline-block uppercase">BEST IN ${item.marketplace}</span>
                             <h3 class="text-lg md:text-2xl font-bold mb-3 line-clamp-2">${item.text_content}</h3>
                             <a href="${item.affiliate_link}" target="_blank" class="inline-block px-8 py-3 amazon-gradient text-black font-bold rounded-lg shadow-md">Get Deal</a>
                         </div>
                     </div>
                 </div>
             `).join('');
-            new Swiper(".mySwiper", { loop: true, autoplay: { delay: 4000 }, pagination: { el: ".swiper-pagination", clickable: true } });
+
+            // 销毁旧实例并重建，防止切换国家后轮播卡顿
+            if (swiperInstance) swiperInstance.destroy();
+            swiperInstance = new Swiper(".mySwiper", { 
+                loop: true, 
+                autoplay: { delay: 4000 }, 
+                pagination: { el: ".swiper-pagination", clickable: true } 
+            });
         }
 
         function loadMore() {
@@ -160,7 +202,7 @@
             
             if (batch.length === 0) {
                 document.getElementById('loader').classList.add('hidden');
-                document.getElementById('end-msg').classList.remove('hidden');
+                if (currentIndex > 0) document.getElementById('end-msg').classList.remove('hidden');
                 return;
             }
 
@@ -184,7 +226,7 @@
                     </div>
                 `;
                 grid.appendChild(card);
-                window.globalObserver.observe(card);
+                if(window.globalObserver) window.globalObserver.observe(card);
             });
             currentIndex += itemsPerPage;
         }
