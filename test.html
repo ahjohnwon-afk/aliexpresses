@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- GA -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-D5YSD14H3P"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -15,8 +14,7 @@
   <title>Global Finds – Best Amazon Deals</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"/>
 
 <style>
 :root{--dark:#111827;--accent:#f97316;--soft:#ffedd5}
@@ -26,8 +24,13 @@
 .badge-right{right:10px;left:auto;background:#000;font-size:10px}
 .price{background:var(--soft);color:#9a3412;font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px}
 .cta{background:var(--dark);color:var(--accent);font-weight:800;padding:10px;border-radius:10px;text-align:center}
-.tab-active{color:#f97316;border-bottom:3px solid #f97316}
-.dot-active{width:24px!important;background:#f97316!important;border-radius:4px}
+.tab-active{color:var(--accent);border-bottom:3px solid var(--accent)}
+.dot-active{width:24px!important;background:var(--accent)!important;border-radius:4px}
+
+/* debug */
+.debug-box{position:fixed;right:14px;bottom:14px;z-index:9999;background:#0b1220;color:#e5e7eb;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px 12px;min-width:260px;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.debug-box small{color:#94a3b8}
+.debug-box code{color:#fdba74}
 </style>
 </head>
 
@@ -50,12 +53,8 @@
 
   <!-- Tabs -->
   <div class="flex gap-6 mb-6 border-b">
-    <button id="tabDeals" class="pb-3 font-black tab-active">
-      🔥 Featured Deals
-    </button>
-    <button id="tabPromo" class="pb-3 font-black hidden">
-      🎟️ Active Promo Codes
-    </button>
+    <button id="tabDeals" class="pb-3 font-black tab-active">🔥 Featured Deals</button>
+    <button id="tabPromo" class="pb-3 font-black">🎟️ Active Promo Codes</button>
   </div>
 
   <!-- PROMO SECTION -->
@@ -71,9 +70,11 @@
       </select>
     </div>
 
-    <div id="promo-list"
-         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="promo-empty" class="hidden border border-slate-200 bg-white rounded-2xl p-6 text-sm text-slate-600">
+      暂无可用 Promo（可能是日期格式解析失败或全部不在有效期）。请看右下角 Debug 信息。
     </div>
+
+    <div id="promo-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
   </section>
 
   <!-- DEAL SECTION -->
@@ -85,12 +86,25 @@
       </select>
     </div>
 
-    <div id="product-grid"
-         class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
-    </div>
+    <div id="product-grid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4"></div>
   </section>
 
 </main>
+
+<!-- DEBUG -->
+<div class="debug-box" id="debugBox">
+  <div class="flex items-center justify-between gap-3">
+    <div class="font-extrabold">Debug</div>
+    <button id="debugToggle" class="text-[11px] px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15">Hide</button>
+  </div>
+  <div id="debugBody" class="mt-2 text-[12px] leading-5">
+    <div>Products: <code id="dbgProducts">0</code></div>
+    <div>Promos loaded: <code id="dbgPromos">0</code></div>
+    <div>Promos active: <code id="dbgPromosActive">0</code></div>
+    <div>Invalid date promos: <code id="dbgInvalid">0</code></div>
+    <small id="dbgHint"></small>
+  </div>
+</div>
 
 <script>
 /* ================= CONFIG ================= */
@@ -103,10 +117,19 @@ const promoSection = document.getElementById("promo-section");
 const dealSection  = document.getElementById("deal-section");
 const tabDeals     = document.getElementById("tabDeals");
 const tabPromo     = document.getElementById("tabPromo");
+const promoEmpty   = document.getElementById("promo-empty");
+
+/* DEBUG DOM */
+const dbgProducts = document.getElementById("dbgProducts");
+const dbgPromos = document.getElementById("dbgPromos");
+const dbgPromosActive = document.getElementById("dbgPromosActive");
+const dbgInvalid = document.getElementById("dbgInvalid");
+const dbgHint = document.getElementById("dbgHint");
 
 /* ================= STATE ================= */
 let allProducts = [];
-let allPromos   = [];
+let allPromosRaw = [];
+let allPromosActive = [];
 let currentCategory = "All";
 let promoPage = 0;
 const PROMOS_PER_PAGE = 3;
@@ -118,6 +141,44 @@ function buildLink(asin){
 function now(){ return new Date(); }
 function formatPrice(v){ return Number(v||0).toFixed(2); }
 function formatRating(v){ return v ? Number(v).toFixed(1) : "N/A"; }
+
+/** 兼容各种日期格式：
+ * - ISO: 2026-01-03T12:00:00Z
+ * - 常见: 2026-01-03 12:00:00
+ * - 只有日期: 2026-01-03
+ */
+function parseDateSmart(input){
+  if(!input) return null;
+  if(input instanceof Date) return input;
+  let s = String(input).trim();
+  // 把 "YYYY-MM-DD HH:mm:ss" 转成 "YYYY-MM-DDTHH:mm:ss"
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+    s = s.replace(/\s+/, "T");
+  }
+  // 只有日期，补 T00:00:00
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    s = s + "T00:00:00";
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+// ✅ FIX: 支持 raw_text 中的 PST / PDT 时间
+function isPromoActive(p){
+  // 1️⃣ 优先 raw_text（你的真实数据来源）
+  let st = parseAmazonRawDate(p.raw_text, "start");
+  let ed = parseAmazonRawDate(p.raw_text, "end");
+
+  // 2️⃣ 兜底：如果以后你加了 start_at / end_at
+  if(!st) st = parseDateSmart(p.start_at || p.startAt || p.start);
+  if(!ed) ed = parseDateSmart(p.end_at   || p.endAt   || p.end);
+
+  if(!st || !ed) return false;
+
+  const t = Date.now();
+  return st.getTime() <= t && t <= ed.getTime();
+}
 
 /* ================= TAB SWITCH ================= */
 tabDeals.onclick = () => {
@@ -135,138 +196,229 @@ tabPromo.onclick = () => {
 };
 
 /* ================= PROMO ================= */
-function isPromoActive(p){
-  return new Date(p.start_at) <= now() && now() <= new Date(p.end_at);
-}
-
-function renderPromoCategories(){
+function renderPromoCategories(promos){
   const sel = document.getElementById("promoCategorySelect");
-  const cats = [...new Set(allPromos.map(p=>p.category))].sort();
+  const cats = [...new Set(promos.map(p=>p.category).filter(Boolean))].sort();
   sel.innerHTML = `<option value="All">All Categories</option>`;
-  cats.forEach(c => sel.innerHTML += `<option>${c}</option>`);
+  cats.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`);
   sel.onchange = () => { promoPage = 0; renderPromos(sel.value); };
 }
 
+/* ================= RENDER PROMOS (NO PAGINATION) ================= */
 function renderPromos(cat="All"){
   const list = document.getElementById("promo-list");
-  const dots = document.getElementById("promo-dots");
-  list.innerHTML = ""; dots.innerHTML = "";
+  const empty = document.getElementById("promo-empty");
+  list.innerHTML = "";
 
-  const filtered = allPromos.filter(p =>
-    isPromoActive(p) && (cat==="All" || p.category===cat)
-  );
-  if(!filtered.length) return;
+  const filtered = allPromosActive.filter(p => cat==="All" || p.category===cat);
 
-  const totalPages = Math.ceil(filtered.length / PROMOS_PER_PAGE);
-  const pageItems = filtered.slice(
-    promoPage*PROMOS_PER_PAGE,
-    promoPage*PROMOS_PER_PAGE + PROMOS_PER_PAGE
-  );
-
-  if(totalPages > 1){
-    for(let i=0;i<totalPages;i++){
-      const d=document.createElement("button");
-      d.className=`h-2 w-2 ${i===promoPage?"dot-active":"bg-slate-300"} rounded-full`;
-      d.onclick=()=>{promoPage=i;renderPromos(cat);};
-      dots.appendChild(d);
-    }
+  if(!filtered.length){
+    empty.classList.remove("hidden"); return;
   }
+  empty.classList.add("hidden");
 
-  pageItems.forEach(p=>{
-    const div=document.createElement("div");
-    div.className="border-2 rounded-2xl p-4 cursor-pointer hover:border-orange-500";
-    div.onclick=()=>copyAndGo(p.promo_code,p.link);
-    div.innerHTML=`
-      <div class="flex justify-between text-[10px]">
-        <span class="font-bold text-orange-500">${p.category}</span>
-        <span class="text-slate-400">Ends ${new Date(p.end_at).toLocaleDateString()}</span>
+  // 直接循环渲染所有符合条件的，不再进行 slice 分页
+  filtered.forEach(p => {
+    const ed = parseAmazonRawDate(p.raw_text, "end");
+    const endText = ed ? ed.toLocaleDateString() : "Limited Time";
+
+    const div = document.createElement("div");
+    div.className = "group border-2 border-slate-100 hover:border-orange-500 rounded-2xl bg-white p-4 transition-all cursor-pointer flex flex-col gap-2";
+    div.onclick = () => copyAndGo(p);
+    div.innerHTML = `
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-bold uppercase text-orange-500">${p.category || "PROMO"}</span>
+        <span class="text-[10px] text-slate-400">Ends ${endText}</span>
       </div>
-      <div class="font-bold mt-1">
-        Save ${p.discount_percent}% on ${p.brand}
-      </div>
-      <div class="mt-3 flex justify-between bg-slate-50 border-dashed border p-2 rounded">
-        <code class="font-mono font-black">${p.promo_code}</code>
-        <span class="text-orange-600 text-[10px] font-bold">TAP TO COPY</span>
+      <div class="text-sm font-bold text-slate-800">Save ${p.discount_percent}% on ${p.brand || "Selected Items"}</div>
+      <div class="mt-2 flex items-center justify-between bg-slate-50 border border-dashed border-slate-300 rounded-lg p-2 group-hover:bg-orange-50 group-hover:border-orange-200">
+        <code class="text-sm font-mono font-black text-slate-700">${p.promo_code}</code>
+        <span class="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded">TAP TO COPY</span>
       </div>
     `;
     list.appendChild(div);
   });
 }
 
-function copyAndGo(code, link){
-  navigator.clipboard.writeText(code);
-  setTimeout(()=>window.open(link,"_blank"),400);
+function toast(msg){
+  const t=document.createElement("div");
+  t.className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full z-[100] text-sm font-bold shadow-xl";
+  t.innerText=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 1200);
+}
+
+/**
+ * 你要的“跳转到指定折扣码专属页面”：
+ * - promo_codes.json 有 link 就直接打开 link
+ * - 没 link：尝试根据 brand 在商品标题里找一个 asin，打开商品页
+ * - 找不到：回退到亚马逊首页带 tag
+ */
+function copyAndGo(p){
+  const code = p.promo_code || "";
+  const link = p.link || "";
+
+  if(code){
+    navigator.clipboard?.writeText(code).catch(()=>{});
+    toast(`Code ${code} Copied!`);
+  }else{
+    toast("Copied!");
+  }
+
+  setTimeout(()=>{
+    if(link){
+      window.open(link, "_blank");
+      return;
+    }
+    // fallback：按 brand 找一个商品
+    const brand = (p.brand || "").toLowerCase().trim();
+    if(brand){
+      const match = allProducts.find(x => (x.title||"").toLowerCase().includes(brand));
+      if(match?.asin){
+        window.open(buildLink(match.asin), "_blank");
+        return;
+      }
+    }
+    window.open("https://www.amazon.com/?tag="+TRACK_ID, "_blank");
+  }, 350);
 }
 
 /* ================= PRODUCTS ================= */
 function scoreProduct(p){
-  const r=p.review_rating||0;
-  const c=Math.log10((p.review_count||0)+1);
-  const pr=p.price_discount||999;
-  return r*c*(1/Math.sqrt(pr))+Math.random()*0.15;
+  const rating = Number(p.review_rating || 0);
+  const reviews = Math.log10((p.review_count || 0) + 1);
+  const price = Number(p.price_discount || 999);
+  const priceFactor = price > 0 ? 1 / Math.sqrt(price) : 0;
+  return rating * reviews * priceFactor + Math.random()*0.15;
 }
 
 function renderProducts(){
   const grid=document.getElementById("product-grid");
   grid.innerHTML="";
-  let list=currentCategory==="All"
-    ?allProducts
-    :allProducts.filter(p=>p.category_name===currentCategory);
+  let list = currentCategory === "All"
+    ? allProducts
+    : allProducts.filter(p=>p.category_name === currentCategory);
 
   list.map(p=>({...p,_s:scoreProduct(p)}))
-      .sort((a,b)=>b._s-a._s)
-      .slice(0,60)
-      .forEach(p=>{
-        const d=document.createElement("div");
-        d.className="product-card";
-        d.innerHTML=`
-        <div class="relative bg-slate-100 aspect-square">
-          ${p.discount_percent?`<span class="badge">-${p.discount_percent}%</span>`:""}
-          <span class="badge badge-right">Amazon</span>
-          <a href="${buildLink(p.asin)}" target="_blank">
-            <img src="${p.main_image}" class="p-6 object-contain w-full h-full">
-          </a>
+    .sort((a,b)=>b._s-a._s)
+    .slice(0,60)
+    .forEach(p=>{
+      const d=document.createElement("div");
+      d.className="product-card";
+      d.innerHTML=`
+      <div class="relative bg-slate-100 aspect-square">
+        ${p.discount_percent?`<span class="badge">-${p.discount_percent}%</span>`:""}
+        <span class="badge badge-right">Amazon</span>
+        <a href="${buildLink(p.asin)}" target="_blank" rel="noopener">
+          <img src="${p.main_image}" class="w-full h-full object-contain p-6" loading="lazy">
+        </a>
+      </div>
+      <div class="p-4 flex flex-col gap-2">
+        <h3 class="text-sm font-bold line-clamp-3 h-12">${p.title || ""}</h3>
+        <div class="flex justify-between items-center mt-auto">
+          <span class="price">${p.currency || "$"}${formatPrice(p.price_discount)}</span>
+          ${p.price_original?`<span class="line-through text-slate-400 text-[10px]">${p.currency || "$"}${formatPrice(p.price_original)}</span>`:""}
         </div>
-        <div class="p-4 flex flex-col gap-2">
-          <h3 class="text-sm font-bold line-clamp-3 h-12">${p.title}</h3>
-          <div class="flex justify-between">
-            <span class="price">${p.currency}${formatPrice(p.price_discount)}</span>
-          </div>
-          <div class="text-[11px]">
-            ⭐ ${formatRating(p.review_rating)} (${p.review_count||0})
-          </div>
-          <a href="${buildLink(p.asin)}" target="_blank" class="cta text-xs">View Deal</a>
-        </div>`;
-        grid.appendChild(d);
-      });
+        <div class="text-[11px] text-slate-500">
+          ⭐ ${formatRating(p.review_rating)} (${p.review_count||0})
+        </div>
+        <a href="${buildLink(p.asin)}" target="_blank" rel="noopener" class="cta text-xs">View Deal</a>
+      </div>`;
+      grid.appendChild(d);
+    });
 }
 
 function renderCategorySelect(cats){
   const sel=document.getElementById("categorySelect");
-  sel.innerHTML="<option>All</option>";
+  sel.innerHTML=`<option>All</option>`;
   cats.forEach(c=>sel.innerHTML+=`<option>${c}</option>`);
   sel.onchange=()=>{currentCategory=sel.value;renderProducts();}
 }
 
+/* ================= DEBUG ================= */
+function setDebug(productsCount, promosLoaded, promosActive, invalidCount, hint){
+  dbgProducts.innerText = String(productsCount);
+  dbgPromos.innerText = String(promosLoaded);
+  dbgPromosActive.innerText = String(promosActive);
+  dbgInvalid.innerText = String(invalidCount);
+  dbgHint.innerText = hint || "";
+}
+
+document.getElementById("debugToggle").onclick = () => {
+  const body = document.getElementById("debugBody");
+  body.classList.toggle("hidden");
+};
+// ✅ FIX: parse Amazon raw_text time like "Jan 02, 2026 at 10:00 PM PST"
+function parseAmazonRawDate(raw, type){
+  if(!raw) return null;
+
+  const reg = type === "start"
+    ? /Start Date:\s*([A-Za-z]{3}\s+\d{2},\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s+[AP]M)\s+(PST|PDT)/i
+    : /End Date:\s*([A-Za-z]{3}\s+\d{2},\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s+[AP]M)\s+(PST|PDT)/i;
+
+  const m = raw.match(reg);
+  if(!m) return null;
+
+  const datePart = m[1].replace(" at ", " ");
+  const tz = m[2] === "PDT" ? "-07:00" : "-08:00"; // ✅ 时区关键
+  const d = new Date(`${datePart} ${tz}`);
+  return isNaN(d) ? null : d;
+}
+
 /* ================= INIT ================= */
 async function init(){
-  const [pd,pr]=await Promise.all([
-    fetch(PRODUCT_URL).then(r=>r.json()),
-    fetch(PROMO_URL).then(r=>r.json())
-  ]);
+    try{ 
+      allPromosRaw = allPromosRaw.map(p=>{
+      if(!p.category && p.raw_text){
+        p.category = p.raw_text.split("\n")[0].trim();
+      }
+      return p;
+    });
+    // 1) fetch
+    const [pRes, promoRes] = await Promise.all([fetch(PRODUCT_URL), fetch(PROMO_URL)]);
+    if(!pRes.ok) throw new Error(`products fetch failed: ${pRes.status}`);
+    if(!promoRes.ok) throw new Error(`promo fetch failed: ${promoRes.status}`);
 
-  allProducts=pd;
-  allPromos=pr.filter(isPromoActive);
+    const [pData, promoData] = await Promise.all([pRes.json(), promoRes.json()]);
 
-  if(allPromos.length){
-    tabPromo.classList.remove("hidden");
-    renderPromoCategories();
-    renderPromos();
+    allProducts = Array.isArray(pData) ? pData : (pData?.data || []);
+    allPromosRaw = Array.isArray(promoData) ? promoData : (promoData?.data || []);
+
+    // 2) 计算 active / invalid
+    let invalidCount = 0;
+    allPromosActive = allPromosRaw.filter(p=>{
+      const st = parseDateSmart(p.start_at || p.startAt || p.start);
+      const ed = parseDateSmart(p.end_at || p.endAt || p.end);
+      if(!st || !ed) invalidCount++;
+      return isPromoActive(p);
+    });
+
+    setDebug(
+      allProducts.length,
+      allPromosRaw.length,
+      allPromosActive.length,
+      invalidCount,
+      "如果 Promos loaded > 0 但 Promos active = 0，八成是日期格式/时区问题（看 Invalid date promos 数量）。"
+    );
+
+    // 3) Promo Tab 永远显示（不再隐藏）
+    //    但如果 active 为空，就显示 empty 提示
+    renderPromoCategories(allPromosRaw.length ? allPromosRaw : allPromosActive);
+    renderPromos("All");
+
+    // 4) Deals
+    const cats=[...new Set(allProducts.map(p=>p.category_name).filter(Boolean))].sort();
+    renderCategorySelect(cats);
+    renderProducts();
+
+  }catch(e){
+    console.error(e);
+    setDebug(0,0,0,0, "加载失败：请打开控制台看 Network 是否 404 / 被缓存 / 路径不对。");
+    // 让用户还能看见 tab
+    tabPromo.click();
+    promoEmpty.classList.remove("hidden");
+    promoEmpty.innerText = "初始化失败：请打开控制台查看错误（常见：json 404 或跨域）。";
   }
-
-  const cats=[...new Set(allProducts.map(p=>p.category_name).filter(Boolean))].sort();
-  renderCategorySelect(cats);
-  renderProducts();
 }
 
 init();
