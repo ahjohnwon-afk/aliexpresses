@@ -46,148 +46,179 @@ select{appearance:none;background:white}
 
 <main class="max-w-7xl mx-auto px-4 py-8">
 
-  <!-- Header Row -->
-  <div class="flex items-center justify-between mb-6 gap-4">
-    <h2 class="text-xl font-black flex items-center gap-2">
-      🔥 Featured Deals
-    </h2>
+  <!-- PROMO CODES -->
+  <section id="promo-section" class="mb-10 hidden">
+    <div class="flex items-center justify-between mb-4 gap-4">
+      <h2 class="text-lg font-black">🎟️ Active Promo Codes</h2>
 
-    <!-- Category Dropdown -->
-    <div class="relative">
-      <select id="categorySelect"
-        class="border border-slate-300 rounded-xl px-4 py-2 pr-10 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-400">
+      <select id="promoCategorySelect"
+        class="border border-slate-300 rounded-xl px-3 py-2 text-sm font-semibold">
       </select>
-      <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
     </div>
+
+    <div id="promo-list"
+      class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    </div>
+  </section>
+
+  <!-- PRODUCTS HEADER -->
+  <div class="flex items-center justify-between mb-6 gap-4">
+    <h2 class="text-xl font-black">🔥 Featured Deals</h2>
+
+    <select id="categorySelect"
+      class="border border-slate-300 rounded-xl px-4 py-2 text-sm font-semibold">
+    </select>
   </div>
 
-  <!-- Products -->
+  <!-- PRODUCTS -->
   <div id="product-grid"
-       class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
+    class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
   </div>
 
 </main>
 
 <script>
-/* =============================
-   Config
-============================= */
+/* ================= CONFIG ================= */
 const TRACK_ID = "site_esfinds-20";
-const DATA_URL = "products_data_v.json";
+const PRODUCT_URL = "products_data_v.json";
+const PROMO_URL = "promo_codes.json";
 
-/* =============================
-   Utils
-============================= */
+/* ================= UTILS ================= */
 function buildLink(asin){
   return `https://www.amazon.com/dp/${asin}?tag=${TRACK_ID}`;
 }
-function formatPrice(v){
-  return v === null || v === undefined ? "" : Number(v).toFixed(2);
-}
-function formatRating(v){
-  return v === null || v === undefined ? "N/A" : Number(v).toFixed(1);
-}
+function formatPrice(v){return Number(v||0).toFixed(2);}
+function formatRating(v){return v ? Number(v).toFixed(1) : "N/A";}
+function now(){return new Date();}
 
-/* =============================
-   Ranking Logic
-============================= */
+/* ================= STATE ================= */
+let allProducts = [];
+let allPromos = [];
+let currentCategory = "All";
+
+/* ================= SCORE ================= */
 function scoreProduct(p){
   const rating = Number(p.review_rating || 0);
   const reviews = Math.log10((p.review_count || 0) + 1);
   const price = Number(p.price_discount || 999);
   const priceFactor = price > 0 ? 1 / Math.sqrt(price) : 0;
-  const randomBoost = Math.random() * 0.15;
-  return (rating * reviews * priceFactor) + randomBoost;
+  return rating * reviews * priceFactor + Math.random()*0.15;
 }
 
-/* =============================
-   State
-============================= */
-let allProducts = [];
-let currentCategory = "All";
+/* ================= PROMO ================= */
+function promoActive(p){
+  return new Date(p.start_at) <= now() && now() <= new Date(p.end_at);
+}
 
-/* =============================
-   Render
-============================= */
+function renderPromoCategories(){
+  const sel = document.getElementById("promoCategorySelect");
+  const cats = [...new Set(allPromos.map(p=>p.category))].sort();
+  sel.innerHTML = `<option value="All">All Categories</option>`;
+  cats.forEach(c=>{
+    sel.innerHTML += `<option value="${c}">${c}</option>`;
+  });
+  sel.onchange = ()=>renderPromos(sel.value);
+}
+
+function renderPromos(cat="All"){
+  const box = document.getElementById("promo-list");
+  box.innerHTML = "";
+
+  const list = allPromos.filter(p =>
+    promoActive(p) && (cat==="All" || p.category===cat)
+  );
+
+  if(list.length===0){
+    document.getElementById("promo-section").classList.add("hidden");
+    return;
+  }
+  document.getElementById("promo-section").classList.remove("hidden");
+
+  list.forEach(p=>{
+    const div = document.createElement("div");
+    div.className="border rounded-xl bg-white p-4 flex flex-col gap-2";
+    div.innerHTML=`
+      <div class="text-xs font-bold text-orange-500">${p.category}</div>
+      <div class="text-sm font-semibold">
+        Save ${p.discount_percent}% on <b>${p.brand}</b>
+      </div>
+      <div class="flex justify-between items-center">
+        <code class="bg-slate-100 px-3 py-1 rounded text-sm">${p.promo_code}</code>
+        <button class="text-orange-500 text-xs font-bold"
+          onclick="copyAndGo('${p.promo_code}','${p.brand}')">
+          Copy & Shop →
+        </button>
+      </div>
+      <div class="text-[10px] text-slate-400">
+        Ends ${new Date(p.end_at).toLocaleDateString()}
+      </div>`;
+    box.appendChild(div);
+  });
+}
+
+function copyAndGo(code, brand){
+  navigator.clipboard.writeText(code);
+  const match = allProducts.find(p =>
+    p.title && p.title.toLowerCase().includes(brand.toLowerCase())
+  );
+  window.open(match ? buildLink(match.asin) : "https://www.amazon.com/?tag="+TRACK_ID);
+}
+
+/* ================= PRODUCTS ================= */
 function renderProducts(){
-  const grid = document.getElementById("product-grid");
-  grid.innerHTML = "";
+  const grid=document.getElementById("product-grid");
+  grid.innerHTML="";
+  let list=currentCategory==="All"?allProducts:
+    allProducts.filter(p=>p.category_name===currentCategory);
 
-  let list = currentCategory === "All"
-    ? allProducts
-    : allProducts.filter(p => p.category_name === currentCategory);
-
-  list
-    .map(p => ({...p, _score: scoreProduct(p)}))
-    .sort((a,b)=>b._score - a._score)
-    .slice(0, 60)
+  list.map(p=>({...p,_s:scoreProduct(p)}))
+    .sort((a,b)=>b._s-a._s)
+    .slice(0,60)
     .forEach(p=>{
-      const div = document.createElement("div");
-      div.className = "product-card";
-
-      div.innerHTML = `
-        <div class="relative bg-slate-100 aspect-square">
-          ${p.discount_percent ? `<span class="badge">-${p.discount_percent}%</span>` : ""}
-          <span class="badge badge-right">Amazon</span>
-          <a href="${buildLink(p.asin)}" target="_blank">
-            <img src="${p.main_image}" class="w-full h-full object-contain p-6">
-          </a>
+      const d=document.createElement("div");
+      d.className="product-card";
+      d.innerHTML=`
+      <div class="relative bg-slate-100 aspect-square">
+        ${p.discount_percent?`<span class="badge">-${p.discount_percent}%</span>`:""}
+        <span class="badge badge-right">Amazon</span>
+        <a href="${buildLink(p.asin)}" target="_blank">
+          <img src="${p.main_image}" class="w-full h-full object-contain p-6">
+        </a>
+      </div>
+      <div class="p-4 flex flex-col gap-2">
+        <h3 class="text-sm font-bold line-clamp-3">${p.title}</h3>
+        <div class="flex justify-between text-xs">
+          <span class="price">${p.currency}${formatPrice(p.price_discount)}</span>
+          ${p.price_original?`<span class="line-through text-slate-400">${p.currency}${formatPrice(p.price_original)}</span>`:""}
         </div>
-
-        <div class="p-4 flex flex-col gap-2">
-          <h3 class="text-sm font-bold line-clamp-3">${p.title}</h3>
-
-          <div class="flex items-center justify-between text-xs">
-            <span class="price">${p.currency}${formatPrice(p.price_discount)}</span>
-            ${p.price_original ? `<span class="line-through text-slate-400">${p.currency}${formatPrice(p.price_original)}</span>` : ""}
-          </div>
-
-          <div class="text-[11px] text-slate-500">
-            ⭐ ${formatRating(p.review_rating)} (${p.review_count || 0})
-            ${p.coupon_type ? " · " + p.coupon_type : ""}
-          </div>
-
-          <a href="${buildLink(p.asin)}" target="_blank" class="cta">
-            View Deal
-          </a>
+        <div class="text-[11px] text-slate-500">
+          ⭐ ${formatRating(p.review_rating)} (${p.review_count||0})
         </div>
-      `;
-      grid.appendChild(div);
+        <a href="${buildLink(p.asin)}" target="_blank" class="cta">View Deal</a>
+      </div>`;
+      grid.appendChild(d);
     });
 }
 
-function renderCategorySelect(categories){
-  const select = document.getElementById("categorySelect");
-  select.innerHTML = "";
-
-  ["All", ...categories].forEach(cat=>{
-    const opt = document.createElement("option");
-    opt.value = cat;
-    opt.textContent = cat;
-    select.appendChild(opt);
-  });
-
-  select.onchange = () => {
-    currentCategory = select.value;
-    renderProducts();
-  };
+function renderCategorySelect(cats){
+  const sel=document.getElementById("categorySelect");
+  sel.innerHTML=`<option>All</option>`;
+  cats.forEach(c=>sel.innerHTML+=`<option>${c}</option>`);
+  sel.onchange=()=>{currentCategory=sel.value;renderProducts();}
 }
 
-/* =============================
-   Init
-============================= */
+/* ================= INIT ================= */
 async function init(){
-  const res = await fetch(DATA_URL);
-  allProducts = await res.json();
+  allProducts = await (await fetch(PRODUCT_URL)).json();
+  allPromos = (await (await fetch(PROMO_URL)).json()).filter(promoActive);
 
-  const categories = [...new Set(
-    allProducts.map(p => p.category_name).filter(Boolean)
-  )].sort();
+  renderPromoCategories();
+  renderPromos();
 
-  renderCategorySelect(categories);
+  const cats=[...new Set(allProducts.map(p=>p.category_name).filter(Boolean))].sort();
+  renderCategorySelect(cats);
   renderProducts();
 }
-
 init();
 </script>
 
