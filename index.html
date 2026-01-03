@@ -27,6 +27,48 @@
 .tab-active{color:var(--accent);border-bottom:3px solid var(--accent)}
 .dot-active{width:24px!important;background:var(--accent)!important;border-radius:4px}
 
+/* ✅ 新增：PROMO CODE 强标记 */
+.badge-promo{
+  position:absolute;
+  top:10px;
+  right:10px;
+  left:auto;
+  background:#16a34a;
+  color:#fff;
+  font-size:10px;
+  font-weight:900;
+  padding:4px 10px;
+  border-radius:999px;
+  box-shadow:0 8px 20px rgba(22,163,74,.25);
+  letter-spacing:.3px;
+}
+.promo-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:900;
+  color:#166534;
+  background:#dcfce7;
+  border:1px solid #86efac;
+  padding:4px 8px;
+  border-radius:999px;
+}
+
+/* ✅ 新增：搜索框微调 */
+.searchbox{
+  border:1px solid #cbd5e1;
+  border-radius:14px;
+  padding:10px 12px;
+  font-size:14px;
+  font-weight:700;
+  outline:none;
+}
+.searchbox:focus{
+  box-shadow:0 0 0 2px rgba(249,115,22,.35);
+  border-color:#fb923c;
+}
+
 /* debug */
 /* ✅ 已按你要求删除 debug（样式保留为注释占位，不影响其它逻辑） */
 </style>
@@ -77,11 +119,24 @@
 
   <!-- DEAL SECTION -->
   <section id="deal-section">
-    <div class="flex items-center justify-between mb-6 gap-4">
+    <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
       <h2 class="text-xl font-black">🔥 Featured Deals</h2>
-      <select id="categorySelect"
-        class="border border-slate-300 rounded-xl px-4 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500">
-      </select>
+
+      <!-- ✅ 新增：搜索框（不影响原有选择器） -->
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="relative flex-1 md:w-[360px]">
+          <i class="fa-solid fa-magnifying-glass text-slate-400 absolute left-4 top-1/2 -translate-y-1/2"></i>
+          <input id="searchInput" class="searchbox w-full pl-11 pr-10"
+            placeholder="Buscar producto / ASIN / palabra clave..." />
+          <button id="clearSearchBtn"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 font-black"
+            title="Clear">✕</button>
+        </div>
+
+        <select id="categorySelect"
+          class="border border-slate-300 rounded-xl px-4 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500">
+        </select>
+      </div>
     </div>
 
     <div id="product-grid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4"></div>
@@ -120,12 +175,12 @@ const AMAZON_TAG_SUFFIX_MAP = {
   JP: "-22"
 };
 
-/* ✅ 新增：无限加载参数（不影响原逻辑） */
-const PRODUCTS_PER_BATCH = 120;   // 每次追加多少张卡（你可以调大/调小）
-let _sortedFilteredProducts = []; // 当前筛选+排序后的列表
-let _renderedCount = 0;           // 已渲染数量
-let _observer = null;             // IntersectionObserver
-let _sentinel = null;             // 触底探针
+/* ✅ 无限加载参数 */
+const PRODUCTS_PER_BATCH = 120;
+let _sortedFilteredProducts = [];
+let _renderedCount = 0;
+let _observer = null;
+let _sentinel = null;
 
 /* ================= DOM ================= */
 const promoSection = document.getElementById("promo-section");
@@ -133,6 +188,10 @@ const dealSection  = document.getElementById("deal-section");
 const tabDeals     = document.getElementById("tabDeals");
 const tabPromo     = document.getElementById("tabPromo");
 const promoEmpty   = document.getElementById("promo-empty");
+
+/* ✅ 新增：搜索 DOM */
+const searchInput = document.getElementById("searchInput");
+const clearSearchBtn = document.getElementById("clearSearchBtn");
 
 /* ================= STATE ================= */
 let allProducts = [];
@@ -142,13 +201,10 @@ let currentCategory = "All";
 let promoPage = 0;
 const PROMOS_PER_PAGE = 3;
 
+/* ✅ 新增：搜索状态 */
+let searchQuery = "";
+
 /* ================= UTILS ================= */
-// ✅ 你要求：
-// 1) 如果 json 里有 affiliate_link，就直接用
-// 2) 否则根据 marketplace 选择域名
-// 3) tag 尾椎根据 marketplace：US -20 / ES -21 ...
-// ⚠️ 为了不改你现有调用（buildLink(p.asin)），我保持签名 buildLink(asin)
-//    但内部会从 allProducts 找到对应商品对象来取 marketplace / affiliate_link
 function buildLink(asin){
   const p = allProducts.find(x => (x.asin || "") === asin);
 
@@ -156,7 +212,7 @@ function buildLink(asin){
   if (p && p.affiliate_link) return p.affiliate_link;
 
   // 2) marketplace => domain / suffix
-  const mp = ((p && p.marketplace) ? p.marketplace : "ES").toUpperCase();  // ✅ 默认 ES（更符合你西班牙初审）
+  const mp = ((p && p.marketplace) ? p.marketplace : "ES").toUpperCase();
   const domain = AMAZON_DOMAIN_MAP[mp] || "amazon.es";
   const suffix = AMAZON_TAG_SUFFIX_MAP[mp] || "-21";
 
@@ -167,20 +223,13 @@ function now(){ return new Date(); }
 function formatPrice(v){ return Number(v||0).toFixed(2); }
 function formatRating(v){ return v ? Number(v).toFixed(1) : "N/A"; }
 
-/** 兼容各种日期格式：
- * - ISO: 2026-01-03T12:00:00Z
- * - 常见: 2026-01-03 12:00:00
- * - 只有日期: 2026-01-03
- */
 function parseDateSmart(input){
   if(!input) return null;
   if(input instanceof Date) return input;
   let s = String(input).trim();
-  // 把 "YYYY-MM-DD HH:mm:ss" 转成 "YYYY-MM-DDTHH:mm:ss"
   if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/.test(s)) {
     s = s.replace(/\s+/, "T");
   }
-  // 只有日期，补 T00:00:00
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     s = s + "T00:00:00";
   }
@@ -189,13 +238,10 @@ function parseDateSmart(input){
   return d;
 }
 
-// ✅ FIX: 支持 raw_text 中的 PST / PDT 时间
 function isPromoActive(p){
-  // 1️⃣ 优先 raw_text（你的真实数据来源）
   let st = parseAmazonRawDate(p.raw_text, "start");
   let ed = parseAmazonRawDate(p.raw_text, "end");
 
-  // 2️⃣ 兜底：如果以后你加了 start_at / end_at
   if(!st) st = parseDateSmart(p.start_at || p.startAt || p.start);
   if(!ed) ed = parseDateSmart(p.end_at   || p.endAt   || p.end);
 
@@ -229,7 +275,6 @@ function renderPromoCategories(promos){
   sel.onchange = () => { promoPage = 0; renderPromos(sel.value); };
 }
 
-/* ================= RENDER PROMOS (NO PAGINATION) ================= */
 function renderPromos(cat="All"){
   const list = document.getElementById("promo-list");
   const empty = document.getElementById("promo-empty");
@@ -242,7 +287,6 @@ function renderPromos(cat="All"){
   }
   empty.classList.add("hidden");
 
-  // 直接循环渲染所有符合条件的，不再进行 slice 分页
   filtered.forEach(p => {
     const ed = parseAmazonRawDate(p.raw_text, "end");
     const endText = ed ? ed.toLocaleDateString() : "Limited Time";
@@ -273,12 +317,6 @@ function toast(msg){
   setTimeout(()=>t.remove(), 1200);
 }
 
-/**
- * 你要的“跳转到指定折扣码专属页面”：
- * - promo_codes.json 有 link 就直接打开 link
- * - 没 link：尝试根据 brand 在商品标题里找一个 asin，打开商品页
- * - 找不到：回退到亚马逊首页带 tag
- */
 function copyAndGo(p){
   const code = p.promo_code || "";
   const link = p.link || "";
@@ -295,7 +333,6 @@ function copyAndGo(p){
       window.open(link, "_blank");
       return;
     }
-    // fallback：按 brand 找一个商品
     const brand = (p.brand || "").toLowerCase().trim();
     if(brand){
       const match = allProducts.find(x => (x.title||"").toLowerCase().includes(brand));
@@ -304,8 +341,6 @@ function copyAndGo(p){
         return;
       }
     }
-
-    // ✅ 默认回退 ES 首页（更符合你西班牙初审）
     window.open("https://www.amazon.es/?tag="+TRACK_ID+(AMAZON_TAG_SUFFIX_MAP["ES"]||"-21"), "_blank");
   }, 350);
 }
@@ -319,16 +354,28 @@ function scoreProduct(p){
   return rating * reviews * priceFactor + Math.random()*0.15;
 }
 
-/* ✅ 新增：获取“筛选+排序后的全量列表”（不改变你的排序规则，只抽出来复用） */
+/* ✅ 新增：搜索匹配（标题/ASIN/分类/品牌字段如果你有） */
+function matchSearch(p, q){
+  if(!q) return true;
+  const s = q.toLowerCase();
+  const title = (p.title || "").toLowerCase();
+  const asin  = (p.asin  || "").toLowerCase();
+  const cat   = (p.category_name || "").toLowerCase();
+  const mp    = (p.marketplace || "").toLowerCase();
+  return title.includes(s) || asin.includes(s) || cat.includes(s) || mp.includes(s);
+}
+
 function getFilteredSortedList(){
   let list = currentCategory === "All"
     ? allProducts
     : allProducts.filter(p=>p.category_name === currentCategory);
 
+  /* ✅ 新增：搜索过滤 */
+  list = list.filter(p => matchSearch(p, searchQuery));
+
   return list
     .map(p=>({...p,_s:scoreProduct(p)}))
     .sort((a,b)=>{
-      // ✅ ES 商品优先展示
       const aMp = (a.marketplace || "").toUpperCase();
       const bMp = (b.marketplace || "").toUpperCase();
       if (aMp === "ES" && bMp !== "ES") return -1;
@@ -337,7 +384,6 @@ function getFilteredSortedList(){
     });
 }
 
-/* ✅ 新增：创建 / 绑定触底探针（IntersectionObserver） */
 function ensureInfiniteObserver(){
   const grid = document.getElementById("product-grid");
 
@@ -356,17 +402,16 @@ function ensureInfiniteObserver(){
   _observer = new IntersectionObserver((entries)=>{
     const e = entries && entries[0];
     if(!e || !e.isIntersecting) return;
-    appendNextBatch(); // ✅ 触底自动追加
+    appendNextBatch();
   },{
     root: null,
-    rootMargin: "800px", // ✅ 提前加载，滚动更顺
+    rootMargin: "800px",
     threshold: 0.01
   });
 
   _observer.observe(_sentinel);
 }
 
-/* ✅ 新增：追加下一批商品卡 */
 function appendNextBatch(){
   const grid=document.getElementById("product-grid");
   if(!_sortedFilteredProducts || !_sortedFilteredProducts.length) return;
@@ -379,22 +424,34 @@ function appendNextBatch(){
     const d=document.createElement("div");
     d.className="product-card";
 
-    // ✅ 货币单位：优先 currency 字段，其次按 marketplace 猜一个合理默认
     const cur = (p.currency && String(p.currency).trim()) ? String(p.currency).trim() : (
       (String(p.marketplace||"").toUpperCase()==="ES" || String(p.marketplace||"").toUpperCase()==="DE" || String(p.marketplace||"").toUpperCase()==="FR" || String(p.marketplace||"").toUpperCase()==="IT") ? "€" : "$"
     );
+
+    /* ✅ 新增：coupon_type 为 Promo Code 重点标记 */
+    const isPromoCode = (String(p.coupon_type || "").toLowerCase().trim() === "promo code");
 
     d.innerHTML=`
       <div class="relative bg-slate-100 aspect-square">
         ${p.discount_percent?`<span class="badge">-${p.discount_percent}%</span>`:""}
         <span class="badge badge-right">Amazon</span>
+        ${isPromoCode?`<span class="badge-promo">PROMO CODE</span>`:""}
         <a href="${buildLink(p.asin)}" target="_blank" rel="noopener">
           <img src="${p.main_image}" class="w-full h-full object-contain p-6" loading="lazy">
         </a>
       </div>
       <div class="p-4 flex flex-col gap-2">
-        <!-- ✅ FIX：去掉 h-12，避免标题被硬切；min-h 保持卡片高度一致 -->
         <h3 class="text-sm font-bold leading-snug line-clamp-3 min-h-[3.6em]">${p.title || ""}</h3>
+
+        ${isPromoCode?`
+          <div class="flex items-center justify-between">
+            <span class="promo-chip">🎟️ Promo Code</span>
+            <span class="text-[10px] font-black text-slate-400">${(p.marketplace||"").toUpperCase()}</span>
+          </div>
+        `:`<div class="flex items-center justify-end">
+            <span class="text-[10px] font-black text-slate-400">${(p.marketplace||"").toUpperCase()}</span>
+          </div>`
+        }
 
         <div class="flex justify-between items-center mt-auto">
           <span class="price">${cur}${formatPrice(p.price_discount)}</span>
@@ -409,7 +466,6 @@ function appendNextBatch(){
   });
 }
 
-/* ✅ 这里保持你原 renderProducts 名字和调用点不变，但不再 slice(0,60)，改为“初始化 + 无限追加” */
 function renderProducts(){
   const grid=document.getElementById("product-grid");
   grid.innerHTML="";
@@ -418,7 +474,7 @@ function renderProducts(){
   _renderedCount = 0;
 
   ensureInfiniteObserver();
-  appendNextBatch(); // 先渲染第一批
+  appendNextBatch();
 }
 
 function renderCategorySelect(cats){
@@ -428,7 +484,6 @@ function renderCategorySelect(cats){
   sel.onchange=()=>{currentCategory=sel.value;renderProducts();}
 }
 
-// ✅ FIX: parse Amazon raw_text time like "Jan 02, 2026 at 10:00 PM PST"
 function parseAmazonRawDate(raw, type){
   if(!raw) return null;
 
@@ -440,10 +495,27 @@ function parseAmazonRawDate(raw, type){
   if(!m) return null;
 
   const datePart = m[1].replace(" at ", " ");
-  const tz = m[2] === "PDT" ? "-07:00" : "-08:00"; // ✅ 时区关键
+  const tz = m[2] === "PDT" ? "-07:00" : "-08:00";
   const d = new Date(`${datePart} ${tz}`);
   return isNaN(d) ? null : d;
 }
+
+/* ================= SEARCH HOOK ================= */
+/* ✅ 新增：搜索（防抖，不影响其它逻辑） */
+let _searchTimer = null;
+function setSearch(q){
+  searchQuery = (q || "").trim();
+  renderProducts();
+}
+searchInput.addEventListener("input", (e)=>{
+  const v = e.target.value || "";
+  if(_searchTimer) clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(()=>setSearch(v), 180);
+});
+clearSearchBtn.onclick = ()=>{
+  searchInput.value = "";
+  setSearch("");
+};
 
 /* ================= INIT ================= */
 async function init(){
@@ -455,7 +527,6 @@ async function init(){
       return p;
     });
 
-    // 1) fetch
     const [pRes, promoRes] = await Promise.all([fetch(PRODUCT_URL), fetch(PROMO_URL)]);
     if(!pRes.ok) throw new Error(`products fetch failed: ${pRes.status}`);
     if(!promoRes.ok) throw new Error(`promo fetch failed: ${promoRes.status}`);
@@ -465,7 +536,6 @@ async function init(){
     allProducts = Array.isArray(pData) ? pData : (pData?.data || []);
     allPromosRaw = Array.isArray(promoData) ? promoData : (promoData?.data || []);
 
-    // 2) 计算 active / invalid
     let invalidCount = 0;
     allPromosActive = allPromosRaw.filter(p=>{
       const st = parseDateSmart(p.start_at || p.startAt || p.start);
@@ -474,19 +544,15 @@ async function init(){
       return isPromoActive(p);
     });
 
-    // 3) Promo Tab 永远显示（不再隐藏）
-    //    但如果 active 为空，就显示 empty 提示
     renderPromoCategories(allPromosRaw.length ? allPromosRaw : allPromosActive);
     renderPromos("All");
 
-    // 4) Deals
     const cats=[...new Set(allProducts.map(p=>p.category_name).filter(Boolean))].sort();
     renderCategorySelect(cats);
     renderProducts();
 
   }catch(e){
     console.error(e);
-    // 让用户还能看见 tab
     tabPromo.click();
     promoEmpty.classList.remove("hidden");
     promoEmpty.innerText = "初始化失败：请打开控制台查看错误（常见：json 404 或跨域）。";
