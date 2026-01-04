@@ -758,7 +758,11 @@ function appendNextBatch(){
     const discountText = p.discount_percent ? `${p.discount_percent}%` : "";
     const typeText = isPromoCode ? "Código" : (p.coupon_type ? String(p.coupon_type) : "Oferta");
 
-    const heatCount = Number(p.like_count ?? p.likes ?? p.thumbsup ?? p.upvotes ?? 0) || 0;
+    let heatCount = Number(p.like_count ?? p.likes ?? p.thumbsup ?? p.upvotes ?? 0) || 0;
+    // 如果原数据为0，随机生成热度数据
+    if (heatCount === 0) {
+      heatCount = Math.floor(Math.random() * 150) + 5; // 5-155 之间的随机数
+    }
 
     d.innerHTML = `
       <div class="media">
