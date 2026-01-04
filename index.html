@@ -470,14 +470,18 @@ function toast(msg){
 }
 
 /* Link builder */
-function buildLink(asin){
-  const p = allProducts.find(x => (x.asin || "") === asin);
-
-  if (p && p.affiliate_link) return p.affiliate_link;
-
-  const mp = ((p && p.marketplace) ? p.marketplace : "ES").toUpperCase();
-  const domain = AMAZON_DOMAIN_MAP[mp] || "amazon.es";
-  const suffix = AMAZON_TAG_SUFFIX_MAP[mp] || "-21";
+function buildLink(asin, currency){
+  // 强制根据货币判断国家
+  let domain = "amazon.com";
+  let suffix = "-20";
+  
+  if (currency === "€") {
+    domain = "amazon.es";
+    suffix = "-21";
+  } else if (currency === "$") {
+    domain = "amazon.com";
+    suffix = "-20";
+  }
 
   return `https://www.${domain}/dp/${asin}?tag=${TRACK_ID}${suffix}`;
 }
@@ -617,7 +621,8 @@ function copyAndGo(p){
     if(brand){
       const match = allProducts.find(x => (x.title||"").toLowerCase().includes(brand));
       if(match?.asin){
-        window.open(buildLink(match.asin), "_blank");
+        const matchCur = match.currency && String(match.currency).trim() ? String(match.currency).trim() : "$";
+        window.open(buildLink(match.asin, matchCur), "_blank");
         return;
       }
     }
@@ -700,10 +705,11 @@ function getFilteredSortedList(){
   return list
     .map(p=>({...p,_s:scoreProduct(p)}))
     .sort((a,b)=>{
-      const aMp = (a.marketplace || "").toUpperCase();
-      const bMp = (b.marketplace || "").toUpperCase();
-      if (aMp === "ES" && bMp !== "ES") return -1;
-      if (aMp !== "ES" && bMp === "ES") return 1;
+      const aCur = (a.currency || "").trim();
+      const bCur = (b.currency || "").trim();
+      // 欧元 € 排前面
+      if (aCur === "€" && bCur !== "€") return -1;
+      if (aCur !== "€" && bCur === "€") return 1;
       return b._s-a._s;
     });
 }
@@ -748,10 +754,20 @@ function appendNextBatch(){
     const d=document.createElement("div");
     d.className="deal-card";
 
-    const mp = String(p.marketplace||"").toUpperCase();
+    const mpOrig = String(p.marketplace||"").toUpperCase();
     const cur = (p.currency && String(p.currency).trim())
       ? String(p.currency).trim()
-      : (["ES","DE","FR","IT"].includes(mp) ? "€" : "$");
+      : "$";
+
+    let mp = "US"; // 默认
+    if (cur === "€") {
+      mp = "ES"; // 欧元 -> 西班牙
+    } else if (cur === "$") {
+      mp = "US"; // 美元 -> 美国
+    } else {
+      // 其它货币符号的备用逻辑
+      mp = String(p.marketplace || "ES").toUpperCase();
+    }
 
     const isPromoCode = (String(p.coupon_type || "").toLowerCase().trim() === "promo code");
 
@@ -771,7 +787,7 @@ function appendNextBatch(){
 
         ${isPromoCode ? `<span class="promo-flag"><i class="fa-solid fa-ticket"></i> Código activo</span>` : ``}
 
-        <a href="${buildLink(p.asin)}" target="_blank" rel="noopener">
+        <a href="${buildLink(p.asin, cur)}" target="_blank" rel="noopener">
           <img src="${p.main_image}" class="w-full h-full object-contain p-6" loading="lazy">
         </a>
       </div>
@@ -810,7 +826,8 @@ function appendNextBatch(){
           <span>Obtener código</span>
         </a>
         ` : `
-        <a href="${buildLink(p.asin)}" target="_blank" rel="noopener" class="cta">
+    <a href="${buildLink(p.asin, cur)}" target="_blank" rel="noopener" class="cta">
+          
           <i class="fa-solid fa-arrow-up-right-from-square"></i>
           <span>Ver detalle</span>
         </a>
